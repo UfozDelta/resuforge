@@ -1,0 +1,44 @@
+server:
+  port: 8080
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: ${COOKIE_SAME_SITE:Lax}
+        secure: ${COOKIE_SECURE:false}
+
+spring:
+  datasource:
+    url:      ${DB_URL:}
+    username: ${DB_USER:}
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 5
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+llm:
+  provider: gemini
+  api-key:  ${GEMINI_API_KEY:}
+  model:
+    generate: gemini-2.5-flash
+    match:    gemini-2.5-flash
+    clean-jd: gemini-2.5-flash-lite
+
+tectonic:
+  binary: ${TECTONIC_BIN:tectonic}
+  timeout-seconds: 30
+
+auth:
+  username:      ${APP_USERNAME:dev}
+  password-hash: ${APP_PASSWORD_BCRYPT:}
+
+cors:
+  allowed-origin: ${FRONTEND_ORIGIN:http://localhost:5173}
+
+# Profile now lives in DB (Flyway V2). Edit at /profile in the UI.

@@ -1,0 +1,51 @@
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven / Java
+.mvn/wrapper/maven-wrapper.jar
+hs_err_pid*
+replay_pid*
+
+# Node / frontend
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+build/
+coverage/
+.vite/
+frontend/.vite/
+
+# Local config and secrets
+.env
+.env.*
+!.env.example
+application-local.yml
+src/main/resources/application-local.yml
+*.local.yml
+*.local.yaml
+
+# Agent and AI tooling local state
+.agents/
+.claude/
+.calude/
+.codex/
+.cursor/
+.continue/
+.aider*
+skills-lock.json
+
+# IDE/editor
+.idea/
+*.iml
+.vscode/
+
+# OS/logs/temp
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.temp
