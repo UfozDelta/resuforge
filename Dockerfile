@@ -19,7 +19,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 ENV TECTONIC_BIN=/usr/local/bin/tectonic
 
 # Pre-warm tectonic so first PDF compile doesn't download packages at runtime
-RUN echo '\documentclass{article}\usepackage[empty]{fullpage}\usepackage{titlesec}\usepackage{marvosym}\usepackage[usenames,dvipsnames]{color}\usepackage{verbatim}\usepackage{enumitem}\usepackage[hidelinks]{hyperref}\usepackage{fancyhdr}\usepackage[english]{babel}\usepackage{tabularx}\usepackage{latexsym}\begin{document}warm\end{document}' \
+RUN printf '%s\n' \
+      '\documentclass{article}' \
+      '\usepackage[empty]{fullpage}' \
+      '\usepackage{titlesec}' \
+      '\usepackage{marvosym}' \
+      '\usepackage[usenames,dvipsnames]{color}' \
+      '\usepackage{verbatim}' \
+      '\usepackage{enumitem}' \
+      '\usepackage[hidelinks]{hyperref}' \
+      '\usepackage{fancyhdr}' \
+      '\usepackage[english]{babel}' \
+      '\usepackage{tabularx}' \
+      '\usepackage{latexsym}' \
+      '\begin{document}warm\end{document}' \
       > /tmp/warm.tex && \
     $TECTONIC_BIN /tmp/warm.tex && \
     rm -f /tmp/warm.tex /tmp/warm.pdf
