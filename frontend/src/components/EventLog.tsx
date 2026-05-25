@@ -12,6 +12,7 @@ interface Props {
  */
 export function EventLog({ state }: Props) {
   const { lines, running, error } = state;
+  console.log('[EventLog] render lines=', lines.length, 'running=', running, 'error=', error);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
