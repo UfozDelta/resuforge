@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api, API_BASE, type ApplicationResponse, type Bullet, type RankedBullet } from '../lib/api';
 import { Section } from '../components/Section';
@@ -14,6 +14,9 @@ export function ApplicationDetail() {
   const [rerendering, setRerendering] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const { stream, state: logState, reset: resetLog } = useEventLog();
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
+  const [pdfVersion, setPdfVersion] = useState(0);
 
   async function load() {
     if (!id) return;
@@ -38,6 +41,22 @@ export function ApplicationDetail() {
     }
   }
   useEffect(() => { load(); }, [id]);
+
+  useEffect(() => {
+    if (!app?.pdfAvailable || !id) return;
+    let cancelled = false;
+    api.fetchRaw(`/api/applications/${id}/pdf`)
+      .then(res => res.blob())
+      .then(blob => {
+        if (cancelled) return;
+        const url = URL.createObjectURL(blob);
+        if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = url;
+        setPdfBlobUrl(url);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [app?.pdfAvailable, app?.id, pdfVersion]);
 
   const ranking: RankedBullet[] = useMemo(() => {
     if (!app) return [];
@@ -74,6 +93,7 @@ export function ApplicationDetail() {
       );
       // Reload app state after pipeline completes so PDF link is fresh.
       await load();
+      setPdfVersion(v => v + 1);
     } catch (e: any) {
       setErr(e?.message || 'Re-render failed');
     } finally {
@@ -168,7 +188,7 @@ export function ApplicationDetail() {
           <Section num="04.B" title="PDF" />
           <div style={{ border: '2px solid var(--ink)', height: 720, background: '#fff' }}>
             {app.pdfAvailable ? (
-              <iframe src={pdfUrl} title="resume PDF" style={{ width: '100%', height: '100%', border: 'none' }} />
+              <iframe src={pdfBlobUrl ?? undefined} title="resume PDF" style={{ width: '100%', height: '100%', border: 'none' }} />
             ) : (
               <div className="center-page" style={{ height: '100%' }}>
                 <div>

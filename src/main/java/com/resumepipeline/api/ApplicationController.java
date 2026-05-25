@@ -4,6 +4,7 @@ import com.resumepipeline.api.dto.ApplicationDtos.*;
 import com.resumepipeline.application.Application;
 import com.resumepipeline.application.ApplicationService;
 import com.resumepipeline.progress.ProgressLog;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -61,7 +62,8 @@ public class ApplicationController {
      *   error — pipeline failed (data = error message)
      */
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter createStream(@RequestBody @Valid CreateApplicationRequest req) {
+    public SseEmitter createStream(@RequestBody @Valid CreateApplicationRequest req, HttpServletResponse response) {
+        response.setHeader("X-Accel-Buffering", "no");
         // Timeout matches worst-case pipeline: JD fetch + 2 LLM calls + tectonic compile.
         SseEmitter emitter = new SseEmitter(600_000L); // 10 min: 3 sequential LLM calls can take 3-6 min total
 
@@ -109,7 +111,8 @@ public class ApplicationController {
      * Streams LaTeX render + tectonic compile progress, then sends done with app ID.
      */
     @PostMapping(value = "/{id}/rerender/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter rerenderStream(@PathVariable UUID id, @RequestBody RerenderRequest req) {
+    public SseEmitter rerenderStream(@PathVariable UUID id, @RequestBody RerenderRequest req, HttpServletResponse response) {
+        response.setHeader("X-Accel-Buffering", "no");
         SseEmitter emitter = new SseEmitter(60_000L);
 
         SSE_EXECUTOR.submit(() -> {

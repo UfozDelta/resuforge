@@ -8,6 +8,7 @@ import com.resumepipeline.bullet.BulletService;
 import com.resumepipeline.progress.ProgressLog;
 import com.resumepipeline.project.Project;
 import com.resumepipeline.project.ProjectService;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -93,7 +94,8 @@ public class ProjectController {
      * with POST.
      */
     @PostMapping(value = "/{id}/bullets/generate-bank/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter generateBankStream(@PathVariable UUID id, @RequestBody GenerateBankRequest req) {
+    public SseEmitter generateBankStream(@PathVariable UUID id, @RequestBody GenerateBankRequest req, HttpServletResponse response) {
+        response.setHeader("X-Accel-Buffering", "no");
         // Timeout: up to 8 categories × ~15s per LLM call = 120s worst case.
         SseEmitter emitter = new SseEmitter(120_000L);
 

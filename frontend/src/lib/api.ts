@@ -48,6 +48,7 @@ export const api = {
   patch: <T>(p: string, body?: unknown) => request<T>(p, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
   del:   <T>(p: string) => request<T>(p, { method: 'DELETE' }),
   pdfUrl: (path: string) => `${BASE}${path}`,
+  fetchRaw: (path: string) => fetch(`${BASE}${path}`, { credentials: 'include' }),
 };
 
 // ---------- types mirroring backend DTOs ----------
