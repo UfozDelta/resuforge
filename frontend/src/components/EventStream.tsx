@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { API_BASE } from '../lib/api';
 
 interface Props {
@@ -24,57 +22,85 @@ function lineColor(line: string): string {
 }
 
 /**
- * Modal popup that streams SSE pipeline events.
+ * Modal popup that shows pipeline progress via polling.
  *
- * Uses @microsoft/fetch-event-source instead of a manual fetch+ReadableStream
- * loop. The library fires onmessage synchronously per parsed SSE event rather
- * than inside microtask continuations, so flushSync can force a paint before
- * the next event arrives — fixing the React 18 batching problem.
+ * Replaces SSE streaming entirely. On mount, POSTs to /api/applications/submit
+ * which returns a jobId immediately and runs the pipeline in a background thread.
+ * Then polls GET /api/applications/jobs/{jobId}/progress every 1.5s.
+ *
+ * Polling sidesteps every React 18 scheduler / SSE batching issue:
+ * each poll response is a normal fetch that updates state in a standard
+ * React event handler, so setState triggers immediate re-renders.
  */
 export function EventStream({ jdText, jdUrl, roleEmphasis, onDone, onClose }: Props) {
   const [lines, setLines] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [connecting, setConnecting] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
 
   useEffect(() => {
-    const ctrl = new AbortController();
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    let cancelled = false;
 
-    fetchEventSource(`${API_BASE}/api/applications/stream`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        jdText: jdText.trim() || undefined,
-        jdUrl: jdUrl.trim() || undefined,
-        roleEmphasis,
-      }),
-      signal: ctrl.signal,
-      // Disable automatic retry — let user close and resubmit on failure
-      openWhenHidden: true,
-      onmessage(ev) {
-        if (ev.event === 'log') {
-          // flushSync forces a synchronous DOM commit + paint before returning.
-          // fetchEventSource fires this callback outside the microtask chain so
-          // flushSync actually works here (unlike inside await reader.read()).
-          flushSync(() => setLines(prev => [...prev, ev.data]));
-        } else if (ev.event === 'done') {
-          setDone(true);
-          setTimeout(() => onDoneRef.current(ev.data), 600);
-        } else if (ev.event === 'error') {
-          setError(ev.data);
+    async function start() {
+      try {
+        const res = await fetch(`${API_BASE}/api/applications/submit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            jdText: jdText.trim() || undefined,
+            jdUrl: jdUrl.trim() || undefined,
+            roleEmphasis,
+          }),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          if (!cancelled) setError(text || `HTTP ${res.status}`);
+          return;
         }
-      },
-      onerror(err) {
-        setError(err?.message || 'Stream error');
-        // Throw to stop fetchEventSource from retrying
-        throw err;
-      },
-    });
+        const { jobId } = await res.json();
+        if (cancelled) return;
+        setConnecting(false);
 
-    return () => ctrl.abort();
+        intervalId = setInterval(async () => {
+          try {
+            const r = await fetch(`${API_BASE}/api/applications/jobs/${jobId}/progress`, {
+              credentials: 'include',
+            });
+            if (!r.ok) return;
+            const data = await r.json();
+            if (cancelled) return;
+
+            // Replace lines with full list from server on each poll.
+            setLines(data.lines ?? []);
+
+            if (data.status === 'DONE') {
+              clearInterval(intervalId!);
+              setDone(true);
+              setTimeout(() => onDoneRef.current(data.appId), 600);
+            } else if (data.status === 'FAILED') {
+              clearInterval(intervalId!);
+              setError(data.error || 'Pipeline failed');
+            }
+          } catch {
+            // Network hiccup — keep polling
+          }
+        }, 1500);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || 'Failed to start pipeline');
+      }
+    }
+
+    start();
+
+    return () => {
+      cancelled = true;
+      if (intervalId !== null) clearInterval(intervalId);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -149,8 +175,8 @@ export function EventStream({ jdText, jdUrl, roleEmphasis, onDone, onClose }: Pr
             lineHeight: 1.8,
           }}
         >
-          {lines.length === 0 && !error && (
-            <div style={{ color: 'var(--muted)' }}>Connecting...</div>
+          {connecting && !error && (
+            <div style={{ color: 'var(--muted)' }}>Starting pipeline...</div>
           )}
           {lines.map((line, i) => (
             <div key={i} style={{ color: lineColor(line) }}>{line}</div>
@@ -158,7 +184,7 @@ export function EventStream({ jdText, jdUrl, roleEmphasis, onDone, onClose }: Pr
           {error && (
             <div style={{ color: '#c00', marginTop: 8 }}>{error}</div>
           )}
-          {!done && !error && lines.length > 0 && (
+          {!done && !error && !connecting && lines.length > 0 && (
             <div style={{ color: '#888', marginTop: 4 }}>...</div>
           )}
           <div ref={bottomRef} />

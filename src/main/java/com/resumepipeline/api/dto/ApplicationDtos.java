@@ -11,6 +11,10 @@ import java.util.UUID;
 
 public class ApplicationDtos {
 
+    public record SubmitResponse(UUID jobId) {}
+
+    public record JobProgressResponse(List<String> lines, String status, UUID appId, String error) {}
+
     public record CreateApplicationRequest(
             String jdText,
             String jdUrl,

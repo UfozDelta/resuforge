@@ -12,6 +12,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.server.ResponseStatusException;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
@@ -24,17 +28,49 @@ import java.util.concurrent.ScheduledFuture;
 public class ApplicationController {
 
     private final ApplicationService service;
+    private final JobProgressStore jobStore;
 
     // Virtual-thread executor — one thread per SSE request, cheap on JDK 21+.
     private static final ExecutorService SSE_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
-    public ApplicationController(ApplicationService service) {
+    public ApplicationController(ApplicationService service, JobProgressStore jobStore) {
         this.service = service;
+        this.jobStore = jobStore;
     }
 
     @GetMapping
     public List<ApplicationSummary> list(@RequestParam(required = false) String outcome) {
         return service.list(outcome).stream().map(ApplicationSummary::from).toList();
+    }
+
+    /**
+     * Async submit — starts the pipeline in the background and returns a job ID
+     * immediately. Frontend polls /jobs/{jobId}/progress for incremental updates.
+     * Avoids SSE streaming entirely, which was batched by React 18's scheduler.
+     */
+    @PostMapping("/submit")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public SubmitResponse submit(@RequestBody @Valid CreateApplicationRequest req) {
+        UUID jobId = UUID.randomUUID();
+        jobStore.start(jobId);
+        SSE_EXECUTOR.submit(() -> {
+            ProgressLog progress = msg -> jobStore.append(jobId, msg);
+            try {
+                Application a = service.create(req.jdText(), req.jdUrl(), req.roleEmphasis(), progress);
+                jobStore.complete(jobId, a.getId());
+            } catch (Exception e) {
+                jobStore.fail(jobId, e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+            }
+        });
+        return new SubmitResponse(jobId);
+    }
+
+    /** Poll endpoint — returns accumulated log lines + current status for a job. */
+    @GetMapping("/jobs/{jobId}/progress")
+    public JobProgressResponse jobProgress(@PathVariable UUID jobId) {
+        JobProgressStore.Snapshot snap = jobStore.getSnapshot(jobId);
+        if (snap == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown job: " + jobId);
+        return new JobProgressResponse(snap.lines(), snap.status().name(), snap.appId(), snap.error());
     }
 
     @GetMapping("/{id}")
