@@ -40,6 +40,7 @@ export function useEventLog() {
     reset();
     setRunning(true);
 
+    console.log('[SSE] fetch start', url);
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -48,6 +49,7 @@ export function useEventLog() {
       body: JSON.stringify(body),
       signal: ctrl.signal,
     });
+    console.log('[SSE] response', res.status, 'content-type:', res.headers.get('content-type'), 'body?', !!res.body);
 
     if (!res.ok || !res.body) {
       const text = await res.text();
@@ -71,8 +73,10 @@ export function useEventLog() {
         try {
           while (true) {
             const { done, value } = await reader.read();
+            console.log('[SSE] chunk', { done, bytes: value?.byteLength });
             if (done) break;
             buf += decoder.decode(value, { stream: true });
+            console.log('[SSE] buf after decode', JSON.stringify(buf.slice(0, 200)));
 
             // Process complete lines from the buffer.
             const rawLines = buf.split('\n');
@@ -81,11 +85,13 @@ export function useEventLog() {
 
             for (const raw of rawLines) {
               const line = raw.trimEnd();
+              console.log('[SSE] line', JSON.stringify(line), 'currentEvent=', currentEvent);
               if (line.startsWith('event:')) {
                 currentEvent = line.slice(6).trim();
               } else if (line.startsWith('data:')) {
                 const data = line.slice(5).trim();
                 if (currentEvent === 'log') {
+                  console.log('[SSE] push log line', data);
                   setLines(prev => [...prev, data]);
                 } else if (currentEvent === 'done') {
                   setRunning(false);
