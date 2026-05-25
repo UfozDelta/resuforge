@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { API_BASE } from '../lib/api';
 
 interface Props {
@@ -24,20 +24,33 @@ function lineColor(line: string): string {
 /**
  * Modal popup that streams SSE pipeline events.
  *
- * Uses an async function loop directly (no Promise constructor wrapper)
- * so React can commit each setState as it arrives instead of batching
- * everything until the stream resolves.
+ * Uses useSyncExternalStore to bypass React 18 concurrent scheduler batching.
+ * setState inside async microtask chains gets deferred until the promise settles.
+ * useSyncExternalStore forces a synchronous re-render on every notify() call,
+ * so each SSE line paints immediately as bytes arrive.
  */
 export function EventStream({ jdText, jdUrl, roleEmphasis, onDone, onClose }: Props) {
-  const [lines, setLines] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  // External store — lives outside React's scheduler
+  const linesRef = useRef<string[]>([]);
+  const statusRef = useRef<{ error: string | null; done: boolean }>({ error: null, done: false });
+  const subsRef = useRef(new Set<() => void>());
   const bottomRef = useRef<HTMLDivElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
+
+  function notify() {
+    subsRef.current.forEach(cb => cb());
+  }
+
+  const lines = useSyncExternalStore(
+    cb => { subsRef.current.add(cb); return () => subsRef.current.delete(cb); },
+    () => linesRef.current,
+  );
+  const status = useSyncExternalStore(
+    cb => { subsRef.current.add(cb); return () => subsRef.current.delete(cb); },
+    () => statusRef.current,
+  );
 
   useEffect(() => {
     const ctrl = new AbortController();
-    abortRef.current = ctrl;
 
     async function run() {
       try {
@@ -55,7 +68,8 @@ export function EventStream({ jdText, jdUrl, roleEmphasis, onDone, onClose }: Pr
 
         if (!res.ok || !res.body) {
           const text = await res.text();
-          setError(text || `HTTP ${res.status}`);
+          statusRef.current = { error: text || `HTTP ${res.status}`, done: false };
+          notify();
           return;
         }
 
@@ -64,9 +78,6 @@ export function EventStream({ jdText, jdUrl, roleEmphasis, onDone, onClose }: Pr
         let buf = '';
         let currentEvent = 'log';
 
-        // Loop is async-direct — no Promise constructor wrapper.
-        // Each await reader.read() yields back to the event loop,
-        // so React can flush the preceding setState before resuming.
         while (true) {
           const { done: streamDone, value } = await reader.read();
           if (streamDone) break;
@@ -82,13 +93,17 @@ export function EventStream({ jdText, jdUrl, roleEmphasis, onDone, onClose }: Pr
             } else if (line.startsWith('data:')) {
               const data = line.slice(5).trim();
               if (currentEvent === 'log') {
-                setLines(prev => [...prev, data]);
+                // Mutate then notify — useSyncExternalStore forces synchronous re-render
+                linesRef.current = [...linesRef.current, data];
+                notify();
               } else if (currentEvent === 'done') {
-                setDone(true);
+                statusRef.current = { error: null, done: true };
+                notify();
                 setTimeout(() => onDone(data), 600);
                 return;
               } else if (currentEvent === 'error') {
-                setError(data);
+                statusRef.current = { error: data, done: false };
+                notify();
                 return;
               }
               currentEvent = 'log';
@@ -96,16 +111,17 @@ export function EventStream({ jdText, jdUrl, roleEmphasis, onDone, onClose }: Pr
           }
         }
 
-        setError('Stream ended without done event');
+        statusRef.current = { error: 'Stream ended without done event', done: false };
+        notify();
       } catch (e: any) {
         if (e?.name !== 'AbortError') {
-          setError(e?.message || 'Stream error');
+          statusRef.current = { error: e?.message || 'Stream error', done: false };
+          notify();
         }
       }
     }
 
     run();
-
     return () => ctrl.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -113,6 +129,8 @@ export function EventStream({ jdText, jdUrl, roleEmphasis, onDone, onClose }: Pr
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [lines]);
+
+  const { error, done } = status;
 
   return (
     <div
@@ -126,7 +144,7 @@ export function EventStream({ jdText, jdUrl, roleEmphasis, onDone, onClose }: Pr
         justifyContent: 'center',
         padding: 24,
       }}
-      onClick={e => { if (e.target === e.currentTarget && (done || error)) onClose(); }}
+      onClick={e => { if (e.target === e.currentTarget && (done || !!error)) onClose(); }}
     >
       <div
         style={{
@@ -199,7 +217,7 @@ export function EventStream({ jdText, jdUrl, roleEmphasis, onDone, onClose }: Pr
         </div>
 
         {/* Footer */}
-        {(done || error) && (
+        {(done || !!error) && (
           <div
             style={{
               padding: '12px 16px',
