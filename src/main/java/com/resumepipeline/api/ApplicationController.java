@@ -64,6 +64,8 @@ public class ApplicationController {
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter createStream(@RequestBody @Valid CreateApplicationRequest req, HttpServletResponse response) {
         response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setBufferSize(1);
         // Timeout matches worst-case pipeline: JD fetch + 2 LLM calls + tectonic compile.
         SseEmitter emitter = new SseEmitter(600_000L); // 10 min: 3 sequential LLM calls can take 3-6 min total
 
@@ -113,6 +115,8 @@ public class ApplicationController {
     @PostMapping(value = "/{id}/rerender/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter rerenderStream(@PathVariable UUID id, @RequestBody RerenderRequest req, HttpServletResponse response) {
         response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setBufferSize(1);
         SseEmitter emitter = new SseEmitter(60_000L);
 
         SSE_EXECUTOR.submit(() -> {

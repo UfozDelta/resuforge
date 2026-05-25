@@ -96,6 +96,8 @@ public class ProjectController {
     @PostMapping(value = "/{id}/bullets/generate-bank/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter generateBankStream(@PathVariable UUID id, @RequestBody GenerateBankRequest req, HttpServletResponse response) {
         response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setBufferSize(1);
         // Timeout: up to 8 categories × ~15s per LLM call = 120s worst case.
         SseEmitter emitter = new SseEmitter(120_000L);
 
