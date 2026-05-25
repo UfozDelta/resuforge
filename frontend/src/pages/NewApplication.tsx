@@ -33,6 +33,8 @@ export function NewApplication() {
         jdUrl: jdUrl.trim() || undefined,
         roleEmphasis,
       });
+      // Brief pause so user can read the final log line before navigating.
+      await new Promise(r => setTimeout(r, 400));
       nav(`/applications/${appId}`);
     } catch (e: any) {
       setErr(e?.message || 'Failed to create application');

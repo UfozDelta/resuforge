@@ -6,6 +6,7 @@ import com.resumepipeline.bullet.Bullet;
 import com.resumepipeline.bullet.BulletRepository;
 import com.resumepipeline.jd.JdFetcher;
 import com.resumepipeline.llm.LlmClient;
+import com.resumepipeline.progress.PipelineTimer;
 import com.resumepipeline.progress.ProgressLog;
 import com.resumepipeline.project.Project;
 import com.resumepipeline.project.ProjectRepository;
@@ -69,12 +70,16 @@ public class ApplicationService {
         }
         if (jdUrl != null && !jdUrl.isBlank() && (jdText == null || jdText.isBlank())) {
             progress.emit("Fetching JD from URL: " + jdUrl);
+            PipelineTimer tFetch = PipelineTimer.start("JD fetch");
             jdText = jdFetcher.fetch(jdUrl);
+            tFetch.stop(jdText.length() + " chars");
             progress.emit("Fetched JD (" + jdText.length() + " chars)");
         }
 
         // Stage: clean JD — strips boilerplate and extracts role/company/keywords
+        PipelineTimer tClean = PipelineTimer.start("cleanJd");
         LlmClient.JdCleanResult clean = llm.cleanJd(jdText, progress);
+        tClean.stop();
 
         // Stage: rank bullets — sends all bullets to LLM for scoring against the JD
         List<Bullet> allBullets = bulletRepo.findAll();
@@ -95,9 +100,11 @@ public class ApplicationService {
                         projectById.containsKey(b.getProjectId()) ? projectById.get(b.getProjectId()).getName() : ""))
                 .toList();
 
+        PipelineTimer tMatch = PipelineTimer.start("match (" + allBullets.size() + " bullets)");
         LlmClient.MatchResult match = llm.match(new LlmClient.MatchRequest(
                 clean.cleanJd(), clean.company(), clean.role(),
                 clean.keywords(), roleEmphasis, bulletsForMatch), progress);
+        tMatch.stop();
 
         // Server-side selection: top 8 overall, cap 3 per project.
         // Emit each selection/skip decision so the user can see the capping logic live.
@@ -137,10 +144,14 @@ public class ApplicationService {
 
         // Stage: render LaTeX
         progress.emit("Rendering LaTeX...");
+        PipelineTimer tRender = PipelineTimer.start("LaTeX render");
         String tex = renderer.render(selected, projectById);
+        tRender.stop();
         // Stage: compile PDF
         progress.emit("Compiling PDF via tectonic...");
+        PipelineTimer tPdf = PipelineTimer.start("tectonic compile");
         PdfCompiler.Result r = compiler.compile(tex);
+        tPdf.stop("success=" + r.success());
 
         Application a = new Application();
         a.setJdText(jdText);

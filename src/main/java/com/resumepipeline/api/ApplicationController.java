@@ -63,7 +63,7 @@ public class ApplicationController {
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter createStream(@RequestBody @Valid CreateApplicationRequest req) {
         // Timeout matches worst-case pipeline: JD fetch + 2 LLM calls + tectonic compile.
-        SseEmitter emitter = new SseEmitter(120_000L);
+        SseEmitter emitter = new SseEmitter(600_000L); // 10 min: 3 sequential LLM calls can take 3-6 min total
 
         SSE_EXECUTOR.submit(() -> {
             ScheduledFuture<?> keepalive = SseUtils.startKeepalive(emitter);

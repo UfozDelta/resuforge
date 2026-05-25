@@ -9,6 +9,7 @@ import com.google.genai.types.Schema;
 import com.google.genai.types.Type;
 import com.resumepipeline.config.GenerationConfig;
 import com.resumepipeline.config.GenerationConfigService;
+import com.resumepipeline.progress.PipelineTimer;
 import com.resumepipeline.progress.ProgressLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -484,12 +485,14 @@ public class GoogleLlmClient implements LlmClient {
         // Run on a separate thread so we can enforce a hard 2-minute timeout.
         // Without this, a stalled LLM response blocks the virtual thread forever.
         try {
+            PipelineTimer tLlm = PipelineTimer.start("LLM " + model + " (promptLen=" + prompt.length() + ")");
             String json = CompletableFuture
                     .supplyAsync(() -> {
                         GenerateContentResponse resp = client.models.generateContent(model, prompt, config);
                         return resp.text();
                     })
                     .get(120, TimeUnit.SECONDS);
+            tLlm.stop("responseLen=" + (json == null ? 0 : json.length()));
             log.debug("LLM {} raw: {}", model, json);
             return json;
         } catch (TimeoutException e) {
