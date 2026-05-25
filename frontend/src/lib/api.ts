@@ -47,6 +47,7 @@ export const api = {
   put:   <T>(p: string, body?: unknown) => request<T>(p, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
   patch: <T>(p: string, body?: unknown) => request<T>(p, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
   del:   <T>(p: string) => request<T>(p, { method: 'DELETE' }),
+  parseResume: (text: string) => request<ParseResumeResponse>('/api/resume/parse', { method: 'POST', body: JSON.stringify({ text }) }),
   pdfUrl: (path: string) => `${BASE}${path}`,
   fetchRaw: (path: string) => fetch(`${BASE}${path}`, { credentials: 'include' }),
 };
@@ -120,6 +121,26 @@ export interface GenerationConfig {
   boldDensity: BoldDensity;
   tone: Tone;
   actionVerbStyle: ActionVerbStyle;
+}
+
+export interface ParsedExperience {
+  name: string;
+  title: string | null;
+  company: string | null;
+  location: string | null;
+  dates: string | null;
+  description: string;
+}
+
+export interface ParsedProject {
+  name: string;
+  description: string;
+  dates: string | null;
+}
+
+export interface ParseResumeResponse {
+  experiences: ParsedExperience[];
+  projects: ParsedProject[];
 }
 
 export interface ApplicationResponse {
