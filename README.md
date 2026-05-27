@@ -1,25 +1,46 @@
 # Resume Pipeline
 
-Small full-stack app for managing resume content, generating/ranking bullet points, and building tailored resume PDFs for job applications.
+Full-stack app for managing resume content, generating tailored PDFs, and tracking job applications. Paste a job description, get a ranked bullet selection, and compile a PDF — all in one flow.
+
+## Features
+
+- **Bullet management** — create, edit, tag, and filter resume bullets by skill
+- **Job application pipeline** — paste JD → LLM cleans and analyzes it → bullets ranked by relevance → PDF compiled
+- **Cover letter** — optional co-generation alongside the resume
+- **Async progress tracking** — long LLM + PDF jobs run in background; frontend polls for status
+- **Bulk import** — upload page with rule-based resume parser for importing existing content
+- **LaTeX PDF output** — resume rendered via a Tectonic-compiled LaTeX template
 
 ## What Is In This Repo
 
-- `src/main/java/com/resumepipeline` - Spring Boot backend.
-- `src/main/resources/db/migration` - Flyway database migrations.
-- `src/main/resources/template/resume.tex` - LaTeX resume template used for PDF output.
-- `frontend` - React + Vite frontend.
-- `legacy` - older resume notes and drafts.
+- `src/main/java/com/resumepipeline` — Spring Boot backend
+- `src/main/resources/db/migration` — Flyway database migrations
+- `src/main/resources/template/resume.tex` — LaTeX resume template used for PDF output
+- `frontend` — React + Vite frontend
+- `.legacy` — older resume notes and drafts
 
-## Backend Overview
+## Backend Modules
 
-- `api` - REST controllers and request/response DTOs.
-- `auth` - login, session auth, CORS, and Spring Security setup.
-- `profile` - profile/resume identity data.
-- `project` - projects and experience entries.
-- `bullet` - resume bullet storage and editing.
-- `application` - job applications, JD matching, and PDF rendering flow.
-- `llm` - Gemini integration for JD cleanup, bullet generation, and ranking.
-- `render` - LaTeX escaping, template rendering, and PDF compilation.
+- `api` — REST controllers and request/response DTOs
+- `auth` — login, session auth, CORS, and Spring Security setup
+- `profile` — profile/resume identity data
+- `project` — projects and experience entries
+- `bullet` — resume bullet storage and editing
+- `application` — job applications, JD matching, and PDF rendering flow
+- `llm` — Gemini integration for JD cleanup, bullet generation, and ranking
+- `render` — LaTeX escaping, template rendering, and PDF compilation
+- `jd` — job description parsing and normalization
+- `progress` — async job tracking (UUID-keyed job store, polling endpoint)
+
+## Application Pipeline Flow
+
+1. User submits job description + selects projects
+2. Backend spawns async job (returns UUID immediately)
+3. LLM cleans JD, ranks bullets, optionally drafts cover letter
+4. Tectonic compiles LaTeX → PDF
+5. Frontend polls `/api/progress/{id}` until done, then renders result
+
+Typical pipeline takes 1–3 minutes depending on LLM response time.
 
 ## Requirements
 
@@ -27,12 +48,10 @@ Small full-stack app for managing resume content, generating/ranking bullet poin
 - Maven
 - Node.js 18 or newer
 - PostgreSQL database
-- Optional: `tectonic` for PDF generation
-- Optional: Gemini API key for LLM features
+- `tectonic` for PDF generation (optional — skip for non-PDF flows)
+- Gemini API key for LLM features (optional — required for bullet ranking and JD analysis)
 
 ## Backend Setup
-
-The backend needs database and auth settings before it can start.
 
 Create a local config file at:
 
@@ -60,7 +79,7 @@ tectonic:
   binary: tectonic
 ```
 
-`application-local.yml` is ignored by git because it can contain secrets.
+`application-local.yml` is git-ignored — safe to put secrets here.
 
 To generate a BCrypt password hash:
 
@@ -77,11 +96,7 @@ $env:SPRING_PROFILES_ACTIVE="local"
 mvn spring-boot:run
 ```
 
-Backend runs at:
-
-```text
-http://localhost:8080
-```
+Backend runs at `http://localhost:8080`.
 
 ## Start The Frontend
 
@@ -93,16 +108,29 @@ npm install
 npm run dev
 ```
 
-Frontend runs at:
+Frontend runs at `http://localhost:5173` and talks to the backend at `http://localhost:8080` by default.
 
-```text
-http://localhost:5173
-```
-
-The frontend talks to the backend at `http://localhost:8080` by default. To override it, set:
+To override the backend URL:
 
 ```powershell
 $env:VITE_API_BASE="http://localhost:8080"
+```
+
+## Docker
+
+Build and run the backend as a container:
+
+```powershell
+docker build -t resume-pipeline .
+docker run -p 8080:8080 `
+  -e SPRING_PROFILES_ACTIVE=local `
+  -e SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/resume_pipeline `
+  -e SPRING_DATASOURCE_USERNAME=postgres `
+  -e SPRING_DATASOURCE_PASSWORD=postgres `
+  -e AUTH_USERNAME=dev `
+  -e AUTH_PASSWORD_HASH=your_bcrypt_hash `
+  -e LLM_API_KEY=your_gemini_api_key `
+  resume-pipeline
 ```
 
 ## Useful Commands
@@ -113,7 +141,7 @@ Run backend tests:
 mvn test
 ```
 
-Build frontend:
+Build frontend for production:
 
 ```powershell
 cd frontend

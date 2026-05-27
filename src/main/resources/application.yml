@@ -40,8 +40,10 @@ tectonic:
   timeout-seconds: 30
 
 auth:
-  username:      ${APP_USERNAME:dev}
-  password-hash: ${APP_PASSWORD_BCRYPT:}
+  seed:
+    username: ${SEED_USERNAME:admin}
+    email:    ${SEED_EMAIL:admin@localhost}
+    password: ${SEED_PASSWORD:}
 
 cors:
   allowed-origin: ${FRONTEND_ORIGIN:http://localhost:5173}

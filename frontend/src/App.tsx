@@ -3,6 +3,7 @@ import { AuthProvider, RequireAuth } from './lib/auth';
 import { Masthead } from './components/Masthead';
 import { Landing } from './pages/Landing';
 import { Login } from './pages/Login';
+import { Register } from './pages/Register';
 import { Projects } from './pages/Projects';
 import { Experiences } from './pages/Experiences';
 import { ProjectDetail } from './pages/ProjectDetail';
@@ -29,6 +30,7 @@ export function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/projects"             element={<AuthedShell><Projects /></AuthedShell>} />
         <Route path="/experiences"          element={<AuthedShell><Experiences /></AuthedShell>} />
         <Route path="/projects/:id"         element={<AuthedShell><ProjectDetail /></AuthedShell>} />

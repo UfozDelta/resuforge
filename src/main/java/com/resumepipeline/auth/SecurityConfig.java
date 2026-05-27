@@ -5,16 +5,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -34,7 +31,7 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .authorizeHttpRequests(a -> a
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/login", "/api/logout", "/api/me", "/error").permitAll()
+                .requestMatchers("/api/login", "/api/logout", "/api/me", "/api/register", "/error").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll()
             )
@@ -51,16 +48,11 @@ public class SecurityConfig {
     }
 
     @Bean
-    public UserDetailsService users(
-            @Value("${auth.username}") String username,
-            @Value("${auth.password-hash}") String passwordHash) {
-        if (passwordHash == null || passwordHash.isBlank()) {
-            throw new IllegalStateException(
-                "auth.password-hash (APP_PASSWORD_BCRYPT) is not set. " +
-                "Run BcryptGen to generate one and put it in application-local.yml.");
-        }
-        UserDetails u = User.withUsername(username).password(passwordHash).roles("USER").build();
-        return new InMemoryUserDetailsManager(u);
+    public DaoAuthenticationProvider authProvider(AppUserDetailsService uds, PasswordEncoder pe) {
+        DaoAuthenticationProvider p = new DaoAuthenticationProvider();
+        p.setUserDetailsService(uds);
+        p.setPasswordEncoder(pe);
+        return p;
     }
 
     @Bean
