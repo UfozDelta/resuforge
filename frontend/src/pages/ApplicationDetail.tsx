@@ -17,15 +17,24 @@ export function ApplicationDetail() {
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const blobUrlRef = useRef<string | null>(null);
   const [pdfVersion, setPdfVersion] = useState(0);
+  const [expandedWhys, setExpandedWhys] = useState<Set<string>>(new Set());
+  const [showTail, setShowTail] = useState(false);
+
+  const TOP_N = 15;
 
   async function load() {
     if (!id) return;
     const a = await api.get<ApplicationResponse>(`/api/applications/${id}`);
     setApp(a);
-    setSelectedIds(new Set(a.selectedBulletIds));
+    const ranking = parseRanking(a.bulletRanking).sort((x, y) => x.rank - y.rank);
+    // Respect saved selection if user already re-rendered; otherwise pre-select top N.
+    if (a.selectedBulletIds.length > 0) {
+      setSelectedIds(new Set(a.selectedBulletIds));
+    } else {
+      setSelectedIds(new Set(ranking.slice(0, TOP_N).map(r => r.bulletId)));
+    }
 
     // Pull all bullets referenced in the ranking so we can display text
-    const ranking = parseRanking(a.bulletRanking);
     const ids = ranking.map(r => r.bulletId);
     if (ids.length > 0) {
       // No batch endpoint; pull all bullets per project. Easier: pull all projects then their bullets.
@@ -74,6 +83,14 @@ export function ApplicationDetail() {
 
   function toggleBullet(bid: string) {
     setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(bid)) next.delete(bid); else next.add(bid);
+      return next;
+    });
+  }
+
+  function toggleWhy(bid: string) {
+    setExpandedWhys(prev => {
       const next = new Set(prev);
       if (next.has(bid)) next.delete(bid); else next.add(bid);
       return next;
@@ -139,28 +156,43 @@ export function ApplicationDetail() {
         <div>
           <Section num="04.A" title="Ranked Bullets" count={ranking.length} />
           <div className="label muted" style={{ marginBottom: 10 }}>
-            CLICK A RANK TO TOGGLE INCLUSION · {selectedIds.size} SELECTED
+            CLICK RANK TO TOGGLE · {selectedIds.size} INCLUDED
           </div>
 
           <div>
-            {ranking.map(r => {
+            {ranking.slice(0, showTail ? ranking.length : TOP_N).map(r => {
               const b = bullets[r.bulletId];
               const isSel = selectedIds.has(r.bulletId);
+              const whyOpen = expandedWhys.has(r.bulletId);
               return (
-                <div key={r.bulletId} className="bullet">
+                <div key={r.bulletId} className="bullet" style={{ opacity: isSel ? 1 : 0.45 }}>
                   <div
                     className={`bullet__rank ${isSel ? 'bullet__rank--selected' : ''}`}
                     onClick={() => toggleBullet(r.bulletId)}
                     title={isSel ? 'Click to exclude' : 'Click to include'}
+                    style={{ cursor: 'pointer' }}
                   >
                     #{String(r.rank).padStart(2, '0')}
                   </div>
-                  <div>
+                  <div style={{ width: '100%' }}>
                     <div className="bullet__text">{b?.text || <em className="muted">— bullet missing —</em>}</div>
-                    <div className="bullet__why">{r.why}</div>
-                    {b && (
-                      <div className="bullet__tags">
+                    {isSel && b && (
+                      <div className="bullet__tags" style={{ marginTop: 4 }}>
                         {b.tags.map(t => <span key={t} className="tag">{t}</span>)}
+                      </div>
+                    )}
+                    {r.why && (
+                      <div style={{ marginTop: 4 }}>
+                        <button
+                          className="btn btn--ghost btn--sm"
+                          style={{ fontSize: 10, padding: '2px 6px' }}
+                          onClick={() => toggleWhy(r.bulletId)}
+                        >
+                          WHY {whyOpen ? '↑' : '↓'}
+                        </button>
+                        {whyOpen && (
+                          <div className="bullet__why" style={{ marginTop: 4 }}>{r.why}</div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -168,6 +200,18 @@ export function ApplicationDetail() {
               );
             })}
           </div>
+
+          {ranking.length > TOP_N && (
+            <button
+              className="btn btn--ghost btn--sm"
+              style={{ marginTop: 8, width: '100%' }}
+              onClick={() => setShowTail(s => !s)}
+            >
+              {showTail
+                ? `HIDE TAIL (${ranking.length - TOP_N})`
+                : `SHOW REMAINING ${ranking.length - TOP_N} BULLETS`}
+            </button>
+          )}
 
           {err && <div className="err" style={{ marginTop: 12 }}>{err}</div>}
 
