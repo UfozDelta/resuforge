@@ -31,7 +31,7 @@ public class BulletController {
     public BulletResponse create(Authentication auth, @PathVariable UUID projectId,
                                  @RequestBody @Valid CreateBulletRequest req) {
         String[] tags = req.tags() == null ? new String[0] : req.tags().toArray(new String[0]);
-        return BulletResponse.from(bullets.create(AuthUtils.userId(auth), projectId, req.text(), tags));
+        return BulletResponse.from(bullets.create(AuthUtils.userId(auth), projectId, req.text(), tags, req.category()));
     }
 
     @PutMapping("/bullets/{id}")

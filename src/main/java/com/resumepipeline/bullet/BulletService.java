@@ -39,9 +39,9 @@ public class BulletService {
         return repo.findByProjectIdOrderByCreatedAtAsc(projectId);
     }
 
-    public Bullet create(UUID userId, UUID projectId, String text, String[] tags) {
+    public Bullet create(UUID userId, UUID projectId, String text, String[] tags, String category) {
         projectService.get(userId, projectId); // verify ownership
-        return repo.save(new Bullet(projectId, text, tags));
+        return repo.save(new Bullet(projectId, text, tags, category));
     }
 
     public Bullet update(UUID userId, UUID bulletId, String text, String[] tags) {

@@ -9,7 +9,7 @@ import java.util.UUID;
 
 public class BulletDtos {
 
-    public record CreateBulletRequest(@NotBlank String text, List<String> tags) {}
+    public record CreateBulletRequest(@NotBlank String text, List<String> tags, String category) {}
 
     public record UpdateBulletRequest(String text, List<String> tags) {}
 
