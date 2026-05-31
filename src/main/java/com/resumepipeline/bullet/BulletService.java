@@ -2,7 +2,6 @@ package com.resumepipeline.bullet;
 
 import com.resumepipeline.llm.CategoryLenses;
 import com.resumepipeline.llm.LlmClient;
-import com.resumepipeline.llm.RepoContextReader;
 import com.resumepipeline.progress.ProgressLog;
 import com.resumepipeline.project.Project;
 import com.resumepipeline.project.ProjectService;
@@ -24,14 +23,11 @@ public class BulletService {
     private final BulletRepository repo;
     private final ProjectService projectService;
     private final LlmClient llm;
-    private final RepoContextReader repoContextReader;
 
-    public BulletService(BulletRepository repo, ProjectService projectService,
-                         LlmClient llm, RepoContextReader repoContextReader) {
+    public BulletService(BulletRepository repo, ProjectService projectService, LlmClient llm) {
         this.repo = repo;
         this.projectService = projectService;
         this.llm = llm;
-        this.repoContextReader = repoContextReader;
     }
 
     public List<Bullet> listForProject(UUID userId, UUID projectId) {
@@ -68,7 +64,6 @@ public class BulletService {
     /** Generate bullets for one project and one category lens. */
     public List<Bullet> generateForProjectAndCategory(UUID userId, UUID projectId, String category, ProgressLog progress) {
         Project p = projectService.get(userId, projectId);
-        String repoContext = repoContextReader.read(p.getSourcePath());
 
         LlmClient.SourceKind sk = p.getKind() == Project.Kind.EXPERIENCE
                 ? LlmClient.SourceKind.EXPERIENCE
@@ -79,7 +74,9 @@ public class BulletService {
         LlmClient.BulletGenerationResult result = llm.generateBullets(
                 new LlmClient.GenerateBulletsRequest(
                         userId, sk, cat,
-                        p.getName(), p.getDescription(), repoContext,
+                        p.getName(), p.getDescription(), p.getRepoContext(),
+                        p.getTechStack(), p.getYourRole(), p.getOwnership(),
+                        p.getScaleImpact(), p.getHardestProblem(),
                         p.getTitle(), p.getCompany(), p.getLocation(), p.getDates()),
                 progress);
 

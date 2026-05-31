@@ -12,14 +12,19 @@ public class ProjectDtos {
             Project.Kind kind,
             @NotBlank String name,
             @NotBlank String description,
-            String sourcePath,
+            String githubUrl,
             String title, String company, String location, String dates
     ) {}
 
     public record UpdateProjectRequest(
             String name,
             String description,
-            String sourcePath,
+            String githubUrl,
+            String techStack,
+            String yourRole,
+            String ownership,
+            String scaleImpact,
+            String hardestProblem,
             String title, String company, String location, String dates
     ) {}
 
@@ -28,13 +33,22 @@ public class ProjectDtos {
             Project.Kind kind,
             String name,
             String description,
-            String sourcePath,
+            String githubUrl,
+            boolean repoContextReady,
+            String techStack,
+            String yourRole,
+            String ownership,
+            String scaleImpact,
+            String hardestProblem,
             String title, String company, String location, String dates,
             Instant createdAt
     ) {
         public static ProjectResponse from(Project p) {
             return new ProjectResponse(
-                    p.getId(), p.getKind(), p.getName(), p.getDescription(), p.getSourcePath(),
+                    p.getId(), p.getKind(), p.getName(), p.getDescription(),
+                    p.getGithubUrl(), p.getRepoContext() != null,
+                    p.getTechStack(), p.getYourRole(), p.getOwnership(),
+                    p.getScaleImpact(), p.getHardestProblem(),
                     p.getTitle(), p.getCompany(), p.getLocation(), p.getDates(),
                     p.getCreatedAt());
         }

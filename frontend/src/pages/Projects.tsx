@@ -9,7 +9,7 @@ export function Projects() {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [sourcePath, setSourcePath] = useState('');
+  const [githubUrl, setGithubUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -30,8 +30,8 @@ export function Projects() {
     e.preventDefault();
     setErr(null); setBusy(true);
     try {
-      await api.post<Project>('/api/projects', { kind: 'PROJECT', name, description, sourcePath: sourcePath || null });
-      setName(''); setDescription(''); setSourcePath('');
+      await api.post<Project>('/api/projects', { kind: 'PROJECT', name, description, githubUrl: githubUrl || null });
+      setName(''); setDescription(''); setGithubUrl('');
       setShowForm(false);
       await load();
     } catch (e: any) {
@@ -53,7 +53,10 @@ export function Projects() {
                 <div className="list__num">{String(i + 1).padStart(2, '0')}</div>
                 <div>
                   <h3 className="list__title">{p.name}</h3>
-                  <div className="list__meta">{p.sourcePath || 'description-only'}</div>
+                  <div className="list__meta">
+                    {p.description?.slice(0, 60)}{(p.description?.length ?? 0) > 60 ? '…' : ''}
+                    {p.githubUrl && <span style={{ marginLeft: 8, opacity: 0.6 }}>{p.repoContextReady ? '⬡ repo cached' : '⬡ fetching…'}</span>}
+                  </div>
                 </div>
                 <button
                   className="btn btn--ghost btn--sm"
@@ -85,12 +88,12 @@ export function Projects() {
                   <div className="field__label">Description / Bullet Bank Source</div>
                   <textarea className="field__textarea" value={description} onChange={e => setDescription(e.target.value)} required
                     style={{ minHeight: 160 }}
-                    placeholder="What does this project do? What did you build, with what tech, at what scale?" />
+                    placeholder={"What problem does this solve?\nTech stack: React, PostgreSQL, FastAPI…\nYour role: solo / lead / contributor\nScale & impact: 10k users, reduced latency 40%, processed 1M records…\nKey accomplishments: what you specifically built or owned"} />
                 </label>
                 <label className="field">
-                  <div className="field__label">Local repo path (optional)</div>
-                  <input className="field__input" value={sourcePath} onChange={e => setSourcePath(e.target.value)}
-                    placeholder="C:\path\to\repo" />
+                  <div className="field__label">GitHub URL (optional — enriches AI context)</div>
+                  <input className="field__input" value={githubUrl} onChange={e => setGithubUrl(e.target.value)}
+                    placeholder="https://github.com/owner/repo" />
                 </label>
                 {err && <div className="err">{err}</div>}
                 <div className="row row--between">

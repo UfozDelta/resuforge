@@ -29,6 +29,11 @@ public interface LlmClient {
             String projectName,
             String description,
             String repoContext,
+            String techStack,
+            String yourRole,
+            String ownership,
+            String scaleImpact,
+            String hardestProblem,
             String title, String company, String location, String dates
     ) {}
     record BulletGenerationResult(List<GeneratedBullet> bullets) {}

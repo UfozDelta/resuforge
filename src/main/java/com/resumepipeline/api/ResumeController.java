@@ -40,7 +40,7 @@ public class ResumeController {
         UUID userId = AuthUtils.userId(auth);
         return req.items().stream().map(item -> {
             Project.Kind kind = item.kind() == null ? Project.Kind.PROJECT : item.kind();
-            Project p = projects.create(userId, kind, item.name(), item.description(), item.sourcePath(),
+            Project p = projects.create(userId, kind, item.name(), item.description(), null,
                     item.title(), item.company(), item.location(), item.dates());
             return ProjectResponse.from(p);
         }).toList();

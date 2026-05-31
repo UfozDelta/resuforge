@@ -28,6 +28,28 @@ public class Project {
     @Column(name = "source_path")
     private String sourcePath;
 
+    @Column(name = "github_url")
+    private String githubUrl;
+
+    @Column(name = "repo_context", columnDefinition = "text")
+    private String repoContext;
+
+    // Enrichment fields — user-provided context for better bullet generation
+    @Column(name = "tech_stack")
+    private String techStack;
+
+    @Column(name = "your_role")
+    private String yourRole;
+
+    @Column(columnDefinition = "text")
+    private String ownership;
+
+    @Column(name = "scale_impact")
+    private String scaleImpact;
+
+    @Column(name = "hardest_problem", columnDefinition = "text")
+    private String hardestProblem;
+
     // Used when kind = EXPERIENCE
     private String title;
     private String company;
@@ -66,6 +88,20 @@ public class Project {
     public void setDescription(String description) { this.description = description; }
     public String getSourcePath() { return sourcePath; }
     public void setSourcePath(String sourcePath) { this.sourcePath = sourcePath; }
+    public String getGithubUrl() { return githubUrl; }
+    public void setGithubUrl(String githubUrl) { this.githubUrl = githubUrl; }
+    public String getRepoContext() { return repoContext; }
+    public void setRepoContext(String repoContext) { this.repoContext = repoContext; }
+    public String getTechStack() { return techStack; }
+    public void setTechStack(String techStack) { this.techStack = techStack; }
+    public String getYourRole() { return yourRole; }
+    public void setYourRole(String yourRole) { this.yourRole = yourRole; }
+    public String getOwnership() { return ownership; }
+    public void setOwnership(String ownership) { this.ownership = ownership; }
+    public String getScaleImpact() { return scaleImpact; }
+    public void setScaleImpact(String scaleImpact) { this.scaleImpact = scaleImpact; }
+    public String getHardestProblem() { return hardestProblem; }
+    public void setHardestProblem(String hardestProblem) { this.hardestProblem = hardestProblem; }
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
     public String getCompany() { return company; }

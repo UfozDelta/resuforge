@@ -16,6 +16,14 @@ export function ProjectDetail() {
   const [picked, setPicked] = useState<Set<string>>(new Set(['ai-ml', 'backend']));
   const [sortMode, setSortMode] = useState<'category' | 'date'>('category');
   const [filterCat, setFilterCat] = useState<string | null>(null);
+  const [enrichOpen, setEnrichOpen] = useState(false);
+  const [enrichSaving, setEnrichSaving] = useState(false);
+  const [enrichErr, setEnrichErr] = useState<string | null>(null);
+  const [techStack, setTechStack] = useState('');
+  const [yourRole, setYourRole] = useState('');
+  const [ownership, setOwnership] = useState('');
+  const [scaleImpact, setScaleImpact] = useState('');
+  const [hardestProblem, setHardestProblem] = useState('');
 
   async function load() {
     if (!id) return;
@@ -26,9 +34,28 @@ export function ProjectDetail() {
         api.get<Bullet[]>(`/api/projects/${id}/bullets`),
       ]);
       setProject(p); setBullets(bs);
+      setTechStack(p.techStack || '');
+      setYourRole(p.yourRole || '');
+      setOwnership(p.ownership || '');
+      setScaleImpact(p.scaleImpact || '');
+      setHardestProblem(p.hardestProblem || '');
     } finally { setLoading(false); }
   }
   useEffect(() => { load(); }, [id]);
+
+  async function saveEnrich() {
+    if (!id) return;
+    setEnrichErr(null); setEnrichSaving(true);
+    try {
+      await api.put(`/api/projects/${id}`, { techStack, yourRole, ownership, scaleImpact, hardestProblem });
+      await load();
+      setEnrichOpen(false);
+    } catch (e: any) {
+      setEnrichErr(e?.message || 'Save failed');
+    } finally {
+      setEnrichSaving(false);
+    }
+  }
 
   function generateBank() {
     if (!id || picked.size === 0) return;
@@ -122,6 +149,66 @@ export function ProjectDetail() {
       <div className="editorial muted" style={{ fontSize: 16, marginBottom: 28, maxWidth: 760, whiteSpace: 'pre-wrap' }}>
         {project.description}
       </div>
+
+      {/* Enrich Context panel */}
+      {!isExperience && (() => {
+        const filledCount = [project.techStack, project.yourRole, project.ownership, project.scaleImpact, project.hardestProblem].filter(Boolean).length;
+        return (
+          <div className="panel panel--inset stack-sm" style={{ marginBottom: 24 }}>
+            <button
+              type="button"
+              style={{ all: 'unset', cursor: 'pointer', width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              onClick={() => setEnrichOpen(o => !o)}
+            >
+              <span className="label">ENRICH CONTEXT</span>
+              <span className="label muted">{filledCount}/5 fields · {enrichOpen ? '▲ COLLAPSE' : '▼ EXPAND'}</span>
+            </button>
+            {filledCount === 0 && !enrichOpen && (
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', letterSpacing: '0.05em' }}>
+                Add tech stack, role, and impact so AI generates stronger bullets.
+              </div>
+            )}
+            {enrichOpen && (
+              <div className="stack" style={{ marginTop: 8 }}>
+                <label className="field">
+                  <div className="field__label">Tech stack</div>
+                  <input className="field__input" value={techStack} onChange={e => setTechStack(e.target.value)}
+                    placeholder="React, PostgreSQL, FastAPI, Redis, Docker…" />
+                </label>
+                <label className="field">
+                  <div className="field__label">Your role</div>
+                  <input className="field__input" value={yourRole} onChange={e => setYourRole(e.target.value)}
+                    placeholder="Solo / Lead / Contributor — e.g. 'Led backend, solo on infra'" />
+                </label>
+                <label className="field">
+                  <div className="field__label">What you owned end-to-end</div>
+                  <textarea className="field__textarea" value={ownership} onChange={e => setOwnership(e.target.value)}
+                    style={{ minHeight: 80 }}
+                    placeholder="I built the auth system, designed the DB schema, owned the data pipeline from ingestion to API…" />
+                </label>
+                <label className="field">
+                  <div className="field__label">Scale & impact</div>
+                  <input className="field__input" value={scaleImpact} onChange={e => setScaleImpact(e.target.value)}
+                    placeholder="10k DAU, 200ms p99, reduced costs 40%, 3-person team…" />
+                </label>
+                <label className="field">
+                  <div className="field__label">Hardest problem solved</div>
+                  <textarea className="field__textarea" value={hardestProblem} onChange={e => setHardestProblem(e.target.value)}
+                    style={{ minHeight: 80 }}
+                    placeholder="Had to guarantee exactly-once delivery under network partitions…" />
+                </label>
+                {enrichErr && <div className="err">{enrichErr}</div>}
+                <div className="row">
+                  <button className="btn btn--acid" onClick={saveEnrich} disabled={enrichSaving}>
+                    {enrichSaving ? <span className="spinner">SAVING</span> : 'SAVE CONTEXT'}
+                  </button>
+                  <button className="btn btn--ghost" onClick={() => setEnrichOpen(false)}>CANCEL</button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <div className="row row--between row--centered" style={{ marginBottom: 10 }}>
         <Section num="01.A" title="Bullet Bank" count={bullets.length} />

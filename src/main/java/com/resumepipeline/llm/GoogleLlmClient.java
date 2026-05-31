@@ -64,12 +64,7 @@ public class GoogleLlmClient implements LlmClient {
                 Description of work (what was built, with what tech, at what scale):
                 %s
                 """.formatted(nz(req.title()), nz(req.company()), nz(req.location()), nz(req.dates()), nz(req.description()))
-                : """
-                Project name: %s
-
-                Project description:
-                %s
-                """.formatted(nz(req.projectName()), nz(req.description()));
+                : buildProjectContextBlock(req);
 
         String repoBlock = req.repoContext() == null || req.repoContext().isBlank()
                 ? ""
@@ -511,6 +506,20 @@ public class GoogleLlmClient implements LlmClient {
     }
 
     private static String nz(String s) { return s == null ? "" : s; }
+
+    private static String buildProjectContextBlock(GenerateBulletsRequest req) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Project name: ").append(nz(req.projectName())).append("\n\n");
+        sb.append("Project description:\n").append(nz(req.description())).append("\n");
+        if (has(req.techStack()))      sb.append("\nTech stack: ").append(req.techStack()).append("\n");
+        if (has(req.yourRole()))       sb.append("Your role: ").append(req.yourRole()).append("\n");
+        if (has(req.ownership()))      sb.append("\nWhat you owned:\n").append(req.ownership()).append("\n");
+        if (has(req.scaleImpact()))    sb.append("\nScale & impact: ").append(req.scaleImpact()).append("\n");
+        if (has(req.hardestProblem())) sb.append("\nHardest problem solved:\n").append(req.hardestProblem()).append("\n");
+        return sb.toString();
+    }
+
+    private static boolean has(String s) { return s != null && !s.isBlank(); }
 
     // -------- shared --------
 

@@ -61,7 +61,13 @@ export interface Project {
   kind: ProjectKind;
   name: string;
   description: string;
-  sourcePath?: string | null;
+  githubUrl?: string | null;
+  repoContextReady?: boolean;
+  techStack?: string | null;
+  yourRole?: string | null;
+  ownership?: string | null;
+  scaleImpact?: string | null;
+  hardestProblem?: string | null;
   title?: string | null;
   company?: string | null;
   location?: string | null;
