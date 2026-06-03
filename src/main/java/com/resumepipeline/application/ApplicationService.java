@@ -27,8 +27,8 @@ import java.util.stream.Collectors;
 public class ApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(ApplicationService.class);
-    private static final int MAX_TOTAL = 8;
-    private static final int MAX_PER_PROJECT = 3;
+    private static final int MAX_TOTAL = 15;
+    private static final int MAX_PER_PROJECT = 3; // also used as the per-project minimum target
     private static final ExecutorService PARALLEL_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
     private final ApplicationRepository repo;
@@ -226,6 +226,57 @@ public class ApplicationService {
                     projDistinct++;
                 }
             }
+        }
+
+        // Minimum fill pass: for each project already on the resume with < MAX_PER_PROJECT bullets,
+        // pad up to MAX_PER_PROJECT using (1) remaining LLM-ranked candidates for that project,
+        // then (2) raw allBullets by tag score as a fallback for thin banks.
+        Map<UUID, List<Bullet>> allByProject = allBullets.stream()
+                .collect(Collectors.groupingBy(Bullet::getProjectId));
+        Set<UUID> selectedProjectIds = selected.stream().map(Bullet::getProjectId)
+                .collect(Collectors.toCollection(java.util.HashSet::new));
+
+        for (UUID pid : new ArrayList<>(selectedProjectIds)) {
+            int have = (int) selected.stream().filter(b -> b.getProjectId().equals(pid)).count();
+            if (have >= MAX_PER_PROJECT) continue;
+
+            Project proj = projectById.get(pid);
+            String projName = proj != null ? proj.getName() : "unknown";
+
+            // Source 1: remaining LLM-ranked candidates for this project (respect LLM signal).
+            for (LlmClient.RankedBullet rb : rankedSorted) {
+                if (have >= MAX_PER_PROJECT) break;
+                UUID bid;
+                try { bid = UUID.fromString(rb.bulletId()); } catch (Exception e) { continue; }
+                if (selectedIds.contains(bid)) continue;
+                Bullet b = bulletById.get(bid);
+                if (b == null || !b.getProjectId().equals(pid)) continue;
+                selected.add(b);
+                selectedIds.add(bid);
+                perProjectName.merge(projName, 1, Integer::sum);
+                have++;
+                progress.emit("Fill (ranked): " + projName + " +" + have);
+            }
+
+            // Source 2: raw allBullets fallback for thin banks, sorted by tag score.
+            if (have < MAX_PER_PROJECT) {
+                List<Bullet> bank = allByProject.getOrDefault(pid, List.of()).stream()
+                        .filter(b -> !selectedIds.contains(b.getId()))
+                        .sorted(Comparator.comparingLong(tagScore).reversed())
+                        .toList();
+                for (Bullet b : bank) {
+                    if (have >= MAX_PER_PROJECT) break;
+                    selected.add(b);
+                    selectedIds.add(b.getId());
+                    perProjectName.merge(projName, 1, Integer::sum);
+                    have++;
+                    progress.emit("Fill (bank fallback): " + projName + " +" + have);
+                }
+            }
+        }
+
+        if (selected.size() > 12) {
+            progress.emit("Warning: " + selected.size() + " bullets selected — PDF may exceed one page.");
         }
 
         progress.emit("Selection complete - " + selected.size() + " bullets"
