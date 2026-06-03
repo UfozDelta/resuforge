@@ -287,10 +287,35 @@ public class ApplicationService {
         List<String> selectedCourses = rank.selectedCourses() == null ? List.of() : rank.selectedCourses();
         Map<String, List<String>> selectedSkills = rank.selectedSkills() == null ? Map.of() : rank.selectedSkills();
 
+        // Skill floor pass: each category must have at least MIN_SKILLS_PER_CATEGORY items.
+        // LLM picks the top relevant ones first; pad remainder from raw profile order.
+        final int MIN_SKILLS_PER_CATEGORY = 6;
+        final String[] SKILL_KEYS = {"languages", "frameworks", "databases", "devops"};
+        Map<String, List<String>> rawSkills = Map.of(
+                "languages",  splitCsv(profile.getSkillsLanguages()),
+                "frameworks", splitCsv(profile.getSkillsFrameworks()),
+                "databases",  splitCsv(profile.getSkillsDatabases()),
+                "devops",     splitCsv(profile.getSkillsDevops())
+        );
+        Map<String, List<String>> filledSkills = new LinkedHashMap<>(selectedSkills);
+        for (String key : SKILL_KEYS) {
+            List<String> sel = new ArrayList<>(filledSkills.getOrDefault(key, List.of()));
+            Set<String> seen = new LinkedHashSet<>(sel);
+            for (String item : rawSkills.getOrDefault(key, List.of())) {
+                if (sel.size() >= MIN_SKILLS_PER_CATEGORY) break;
+                if (seen.add(item)) sel.add(item);
+            }
+            filledSkills.put(key, sel);
+        }
+        progress.emit("Skills filled: " + SKILL_KEYS[0] + "=" + filledSkills.get("languages").size()
+                + " fw=" + filledSkills.get("frameworks").size()
+                + " db=" + filledSkills.get("databases").size()
+                + " devops=" + filledSkills.get("devops").size());
+
         // Stage: render LaTeX
         progress.emit("Rendering LaTeX...");
         PipelineTimer tRender = PipelineTimer.start("LaTeX render");
-        String tex = renderer.render(userId, selected, projectById, selectedCourses, selectedSkills);
+        String tex = renderer.render(userId, selected, projectById, selectedCourses, filledSkills);
         tRender.stop();
 
         // Fire cover letter in parallel with tectonic compile — cover letter gets
@@ -336,7 +361,7 @@ public class ApplicationService {
         a.setSelectedBulletIds(selected.stream().map(Bullet::getId).toArray(UUID[]::new));
         a.setSelectedCourses(selectedCourses.toArray(new String[0]));
         try {
-            a.setSelectedSkills(mapper.writeValueAsString(selectedSkills));
+            a.setSelectedSkills(mapper.writeValueAsString(filledSkills));
         } catch (JsonProcessingException e) {
             a.setSelectedSkills("{}");
         }
@@ -415,6 +440,11 @@ public class ApplicationService {
         addSkillCategory(cats, "databases", p.getSkillsDatabases());
         addSkillCategory(cats, "devops", p.getSkillsDevops());
         return cats;
+    }
+
+    private static List<String> splitCsv(String csv) {
+        if (csv == null || csv.isBlank()) return List.of();
+        return Arrays.stream(csv.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
     }
 
     private static void addSkillCategory(List<LlmClient.SkillCategory> cats, String name, String csv) {
