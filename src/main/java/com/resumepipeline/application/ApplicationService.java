@@ -100,28 +100,32 @@ public class ApplicationService {
             throw new IllegalStateException("No bullets in the bank — generate or add some first.");
         }
 
-        // Pre-filter: score each bullet by how many of its tags overlap with JD keywords,
-        // then take the top 25. Keeps the match prompt focused and output size small —
-        // LLM ranking accuracy degrades significantly past ~25 items.
+        // Fetch all user projects up front — needed for kind-aware pre-filter and selection.
+        Map<UUID, Project> projectById = projectRepo.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
+                .collect(Collectors.toMap(Project::getId, p -> p));
+
+        // Pre-filter: round-robin across projects (top 4 bullets per project by tag overlap),
+        // then global top-25. Prevents bullet-heavy projects from crowding out all other entries.
         Set<String> kwLower = clean.keywords().stream()
                 .map(String::toLowerCase)
                 .collect(Collectors.toSet());
+        java.util.function.ToLongFunction<Bullet> tagScore = b ->
+                Arrays.stream(b.getTags() == null ? new String[0] : b.getTags())
+                      .filter(t -> kwLower.contains(t.toLowerCase()))
+                      .count();
         List<Bullet> candidates = allBullets.stream()
-                .sorted(Comparator.comparingLong((Bullet b) ->
-                        Arrays.stream(b.getTags() == null ? new String[0] : b.getTags())
-                              .filter(t -> kwLower.contains(t.toLowerCase()))
-                              .count()
-                ).reversed())
+                .collect(Collectors.groupingBy(Bullet::getProjectId))
+                .values().stream()
+                .flatMap(group -> group.stream()
+                        .sorted(Comparator.comparingLong(tagScore).reversed())
+                        .limit(4))
+                .sorted(Comparator.comparingLong(tagScore).reversed())
                 .limit(25)
                 .toList();
 
         progress.emit("Pre-filter: " + allBullets.size() + " total bullets → top " + candidates.size()
-                + " by tag overlap with JD keywords (" + clean.keywords().size() + " keywords)");
-
-        // Only fetch projects that actually appear in the candidate set.
-        Set<UUID> projectIds = candidates.stream().map(Bullet::getProjectId).collect(Collectors.toSet());
-        Map<UUID, Project> projectById = projectRepo.findByIdIn(projectIds).stream()
-                .collect(Collectors.toMap(Project::getId, p -> p));
+                + " by tag overlap with JD keywords (" + clean.keywords().size() + " keywords)"
+                + " across " + candidates.stream().map(Bullet::getProjectId).distinct().count() + " projects");
 
         List<LlmClient.BulletForMatch> bulletsForMatch = candidates.stream()
                 .map(b -> new LlmClient.BulletForMatch(
@@ -185,7 +189,47 @@ public class ApplicationService {
             perProjectName.merge(proj, 1, Integer::sum);
             selected.add(b);
         }
-        progress.emit("Selection complete - " + selected.size() + " bullets:");
+        // Kind-floor pass: if greedy result is missing EXPERIENCE or PROJECT diversity,
+        // walk remaining ranked bullets and force-add from under-represented kinds (best-effort).
+        final int MIN_EXPERIENCE_PROJECTS = 2;
+        final int MIN_PROJECT_ENTRIES = 3;
+        Set<UUID> selectedIds = selected.stream().map(Bullet::getId).collect(Collectors.toCollection(java.util.HashSet::new));
+        long expDistinct = selected.stream().map(Bullet::getProjectId).distinct()
+                .filter(pid -> { Project p = projectById.get(pid); return p != null && p.getKind() == Project.Kind.EXPERIENCE; })
+                .count();
+        long projDistinct = selected.stream().map(Bullet::getProjectId).distinct()
+                .filter(pid -> { Project p = projectById.get(pid); return p != null && p.getKind() == Project.Kind.PROJECT; })
+                .count();
+
+        if (expDistinct < MIN_EXPERIENCE_PROJECTS || projDistinct < MIN_PROJECT_ENTRIES) {
+            Set<UUID> selectedProjects = selected.stream().map(Bullet::getProjectId).collect(Collectors.toCollection(java.util.HashSet::new));
+            for (LlmClient.RankedBullet rb : rankedSorted) {
+                if (expDistinct >= MIN_EXPERIENCE_PROJECTS && projDistinct >= MIN_PROJECT_ENTRIES) break;
+                UUID bid;
+                try { bid = UUID.fromString(rb.bulletId()); } catch (Exception e) { continue; }
+                if (selectedIds.contains(bid)) continue;
+                Bullet b = bulletById.get(bid);
+                if (b == null) continue;
+                Project p = projectById.get(b.getProjectId());
+                if (p == null || selectedProjects.contains(b.getProjectId())) continue;
+                if (p.getKind() == Project.Kind.EXPERIENCE && expDistinct < MIN_EXPERIENCE_PROJECTS) {
+                    selected.add(b);
+                    selectedIds.add(bid);
+                    selectedProjects.add(b.getProjectId());
+                    perProjectName.merge(p.getName(), 1, Integer::sum);
+                    expDistinct++;
+                } else if (p.getKind() == Project.Kind.PROJECT && projDistinct < MIN_PROJECT_ENTRIES) {
+                    selected.add(b);
+                    selectedIds.add(bid);
+                    selectedProjects.add(b.getProjectId());
+                    perProjectName.merge(p.getName(), 1, Integer::sum);
+                    projDistinct++;
+                }
+            }
+        }
+
+        progress.emit("Selection complete - " + selected.size() + " bullets"
+                + " (" + expDistinct + " exp, " + projDistinct + " proj):");
         perProjectName.forEach((proj, cnt) ->
                 progress.emit("  " + proj + " - " + cnt + " bullet" + (cnt > 1 ? "s" : "")));
 

@@ -37,6 +37,7 @@ export function EventStream({ submitUrl, submitBody, pollUrl, onDone, onClose, t
   const [lines, setLines] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [doneId, setDoneId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const onDoneRef = useRef(onDone);
@@ -77,7 +78,7 @@ export function EventStream({ submitUrl, submitBody, pollUrl, onDone, onClose, t
             if (data.status === 'DONE') {
               clearInterval(intervalId!);
               setDone(true);
-              setTimeout(() => onDoneRef.current(data.appId), 600);
+              setDoneId(data.appId);
             } else if (data.status === 'FAILED') {
               clearInterval(intervalId!);
               setError(data.error || 'Pipeline failed');
@@ -205,10 +206,10 @@ export function EventStream({ submitUrl, submitBody, pollUrl, onDone, onClose, t
             <button className="btn btn--ghost btn--sm" onClick={onClose}>
               CLOSE
             </button>
-            {done && doneLabel !== '' && (
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#2a7a2a', alignSelf: 'center' }}>
-                {doneLabel ?? 'Redirecting...'}
-              </span>
+            {done && doneId && doneLabel !== '' && (
+              <button className="btn btn--acid btn--sm" onClick={() => onDoneRef.current(doneId)}>
+                {doneLabel ?? 'VIEW APPLICATION →'}
+              </button>
             )}
           </div>
         )}

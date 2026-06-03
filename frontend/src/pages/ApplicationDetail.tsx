@@ -1,9 +1,8 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api, API_BASE, type ApplicationResponse, type Bullet, type RankedBullet } from '../lib/api';
+import { api, type ApplicationResponse, type Bullet, type RankedBullet } from '../lib/api';
 import { Section } from '../components/Section';
-import { useEventLog } from '../lib/useEventLog';
-import { EventLog } from '../components/EventLog';
+import { EventStream } from '../components/EventStream';
 
 export function ApplicationDetail() {
   const { id } = useParams<{ id: string }>();
@@ -11,9 +10,7 @@ export function ApplicationDetail() {
   const [bullets, setBullets] = useState<Record<string, Bullet>>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [rerendering, setRerendering] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const { stream, state: logState, reset: resetLog } = useEventLog();
+  const [rerenderStreaming, setRerenderStreaming] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const blobUrlRef = useRef<string | null>(null);
   const [pdfVersion, setPdfVersion] = useState(0);
@@ -95,27 +92,6 @@ export function ApplicationDetail() {
       if (next.has(bid)) next.delete(bid); else next.add(bid);
       return next;
     });
-  }
-
-  async function rerender() {
-    if (!app) return;
-    setErr(null);
-    resetLog();
-    setRerendering(true);
-    try {
-      // SSE endpoint streams LaTeX render + tectonic compile progress in real time.
-      await stream(
-        `${API_BASE}/api/applications/${app.id}/rerender/stream`,
-        { selectedBulletIds: Array.from(selectedIds) }
-      );
-      // Reload app state after pipeline completes so PDF link is fresh.
-      await load();
-      setPdfVersion(v => v + 1);
-    } catch (e: any) {
-      setErr(e?.message || 'Re-render failed');
-    } finally {
-      setRerendering(false);
-    }
   }
 
   if (!app) return <div className="shell"><span className="spinner">LOADING</span></div>;
@@ -213,17 +189,13 @@ export function ApplicationDetail() {
             </button>
           )}
 
-          {err && <div className="err" style={{ marginTop: 12 }}>{err}</div>}
-
           <div className="row row--between row--centered" style={{ marginTop: 20, position: 'sticky', bottom: 16, background: 'var(--paper)', padding: '12px 0', borderTop: '2px solid var(--ink)' }}>
             <span className="label muted">
               {dirty ? 'SELECTION CHANGED · RE-RENDER PDF' : 'NO CHANGES'}
             </span>
-            <button className="btn btn--acid" disabled={!dirty || rerendering} onClick={rerender}>
-              {rerendering ? <span className="spinner">RENDERING</span> : <>RE-RENDER PDF &nbsp;→</>}
+            <button className="btn btn--acid" disabled={!dirty} onClick={() => setRerenderStreaming(true)}>
+              RE-RENDER PDF &nbsp;→
             </button>
-          {/* Live log panel — shows render + compile events in real time */}
-          <EventLog state={logState} />
           </div>
         </div>
 
@@ -268,6 +240,18 @@ export function ApplicationDetail() {
           </div>
         </div>
       </div>
+
+      {rerenderStreaming && (
+        <EventStream
+          submitUrl={`/api/applications/${app.id}/rerender/submit`}
+          submitBody={{ selectedBulletIds: Array.from(selectedIds) }}
+          pollUrl={jobId => `/api/applications/jobs/${jobId}/progress`}
+          onDone={async () => { await load(); setPdfVersion(v => v + 1); setRerenderStreaming(false); }}
+          onClose={() => setRerenderStreaming(false)}
+          title="RE-RENDERING PDF..."
+          doneLabel="DONE →"
+        />
+      )}
     </div>
   );
 }
