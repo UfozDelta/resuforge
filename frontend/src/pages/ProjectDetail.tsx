@@ -24,6 +24,14 @@ export function ProjectDetail() {
   const [ownership, setOwnership] = useState('');
   const [scaleImpact, setScaleImpact] = useState('');
   const [hardestProblem, setHardestProblem] = useState('');
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [infoSaving, setInfoSaving] = useState(false);
+  const [infoErr, setInfoErr] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editCompany, setEditCompany] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editDates, setEditDates] = useState('');
+  const [editDescription, setEditDescription] = useState('');
 
   async function load() {
     if (!id) return;
@@ -39,9 +47,28 @@ export function ProjectDetail() {
       setOwnership(p.ownership || '');
       setScaleImpact(p.scaleImpact || '');
       setHardestProblem(p.hardestProblem || '');
+      setEditTitle(p.title || '');
+      setEditCompany(p.company || '');
+      setEditLocation(p.location || '');
+      setEditDates(p.dates || '');
+      setEditDescription(p.description || '');
     } finally { setLoading(false); }
   }
   useEffect(() => { load(); }, [id]);
+
+  async function saveInfo() {
+    if (!id) return;
+    setInfoErr(null); setInfoSaving(true);
+    try {
+      await api.put(`/api/projects/${id}`, { title: editTitle, company: editCompany, location: editLocation, dates: editDates, description: editDescription });
+      await load();
+      setInfoOpen(false);
+    } catch (e: any) {
+      setInfoErr(e?.message || 'Save failed');
+    } finally {
+      setInfoSaving(false);
+    }
+  }
 
   async function saveEnrich() {
     if (!id) return;
@@ -150,8 +177,53 @@ export function ProjectDetail() {
         {project.description}
       </div>
 
+      {/* Edit Info panel — experiences only */}
+      {isExperience && (
+        <div className="panel panel--inset stack-sm" style={{ marginBottom: 24 }}>
+          <button
+            type="button"
+            style={{ all: 'unset', cursor: 'pointer', width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            onClick={() => setInfoOpen(o => !o)}
+          >
+            <span className="label">EDIT INFO</span>
+            <span className="label muted">{infoOpen ? '▲ COLLAPSE' : '▼ EXPAND'}</span>
+          </button>
+          {infoOpen && (
+            <div className="stack" style={{ marginTop: 8 }}>
+              <label className="field">
+                <div className="field__label">Title</div>
+                <input className="field__input" value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="Software Engineer Intern" />
+              </label>
+              <label className="field">
+                <div className="field__label">Company</div>
+                <input className="field__input" value={editCompany} onChange={e => setEditCompany(e.target.value)} placeholder="Acme Corp" />
+              </label>
+              <label className="field">
+                <div className="field__label">Location</div>
+                <input className="field__input" value={editLocation} onChange={e => setEditLocation(e.target.value)} placeholder="San Francisco, CA" />
+              </label>
+              <label className="field">
+                <div className="field__label">Dates</div>
+                <input className="field__input" value={editDates} onChange={e => setEditDates(e.target.value)} placeholder="Jun 2024 – Aug 2024" />
+              </label>
+              <label className="field">
+                <div className="field__label">Description</div>
+                <textarea className="field__textarea" value={editDescription} onChange={e => setEditDescription(e.target.value)} style={{ minHeight: 80 }} placeholder="What you did here…" />
+              </label>
+              {infoErr && <div className="err">{infoErr}</div>}
+              <div className="row">
+                <button className="btn btn--acid" onClick={saveInfo} disabled={infoSaving}>
+                  {infoSaving ? <span className="spinner">SAVING</span> : 'SAVE INFO'}
+                </button>
+                <button className="btn btn--ghost" onClick={() => setInfoOpen(false)}>CANCEL</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Enrich Context panel */}
-      {!isExperience && (() => {
+      {(() => {
         const filledCount = [project.techStack, project.yourRole, project.ownership, project.scaleImpact, project.hardestProblem].filter(Boolean).length;
         return (
           <div className="panel panel--inset stack-sm" style={{ marginBottom: 24 }}>
