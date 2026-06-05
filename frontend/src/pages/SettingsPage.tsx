@@ -162,6 +162,28 @@ export function SettingsPage() {
         )}
       </div>
     </div>
+
+    <div className="panel" style={{ marginTop: 32 }}>
+      <Section num="03" title="TOOLS" />
+      <div style={{ marginTop: 20 }}>
+        <div style={{ marginBottom: 12 }}>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: '0.85rem', fontWeight: 600 }}>
+            Project Context Extractor
+          </span>
+          <p style={{ fontFamily: 'var(--mono)', fontSize: '0.75rem', color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.6 }}>
+            A Claude instruction file. Point Claude at any codebase — it explores the repo and
+            produces a filled context doc ready to paste into your ResuForge project fields.
+          </p>
+        </div>
+        <a
+          className="btn btn--ghost"
+          href="/api/tools/content-extract"
+          download="content_extract.md"
+        >
+          ↓ DOWNLOAD content_extract.md
+        </a>
+      </div>
+    </div>
   );
 }
 

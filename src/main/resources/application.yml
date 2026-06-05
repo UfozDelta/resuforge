@@ -36,7 +36,7 @@ tectonic:
 
 auth:
   seed:
-    username: ${SEED_USERNAME:felix}
+    username: ${SEED_USERNAME:f3l}
     email:    ${SEED_EMAIL:admin@localhost}
     password: ${SEED_PASSWORD:}
 
